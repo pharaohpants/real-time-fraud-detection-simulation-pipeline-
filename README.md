@@ -24,7 +24,6 @@ Sistem pipeline real-time untuk deteksi fraud pada transaksi finansial menggunak
 | Stream Processing | Apache Spark | 3.5.0 |
 | Database | PostgreSQL | 15 |
 | Data Transformation | dbt-core | 1.x |
-| Data Quality | Great Expectations | Latest |
 | Orchestration | Apache Airflow | 2.7.0 |
 | Visualization | Grafana | 10.0.0 |
 | Containerization | Docker + Docker Compose | Latest |
@@ -215,9 +214,7 @@ Risk Score < 40   → APPROVE (proses normal)
 
 ---
 
-## Data Quality Framework
-
-Great Expectations membuat 2 expectation suites:
+## Data Quality Check
 
 ### `raw_transactions.warning`
 
