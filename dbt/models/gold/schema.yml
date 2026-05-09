@@ -1,0 +1,84 @@
+version: 2
+
+models:
+  - name: mart_fraud_summary
+    description: Fraud metrics aggregated by hour and merchant
+    columns:
+      - name: hour_bucket
+        description: Hour time bucket
+      - name: merchant
+        description: Merchant name
+      - name: total_transactions
+        description: Total transactions in period
+      - name: fraud_count
+        description: Count of non-approved transactions
+      - name: block_count
+        description: Count of blocked transactions
+      - name: review_count
+        description: Count of review transactions
+      - name: fraud_rate_pct
+        description: Fraud rate percentage
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 100
+      - name: avg_risk_score
+        description: Average risk score
+
+  - name: mart_customer_risk
+    description: Customer risk profiles
+    columns:
+      - name: customer_id
+        description: Unique customer identifier
+        tests:
+          - not_null
+          - unique
+      - name: total_transactions
+        description: Total transactions by customer
+      - name: fraud_transaction_count
+        description: Count of fraudulent transactions
+      - name: total_amount_blocked
+        description: Total amount blocked
+      - name: max_risk_score
+        description: Maximum risk score
+      - name: avg_risk_score
+        description: Average risk score
+      - name: most_triggered_rule
+        description: Most frequently triggered fraud rule
+      - name: risk_label
+        description: Risk classification
+        tests:
+          - accepted_values:
+              values: ['HIGH', 'MEDIUM', 'LOW']
+
+  - name: mart_daily_volume
+    description: Daily volume and fraud metrics
+    columns:
+      - name: date
+        description: Date
+        tests:
+          - not_null
+          - unique
+      - name: total_transactions
+        description: Total daily transactions
+      - name: total_amount
+        description: Total daily transaction amount
+      - name: fraud_rate_pct
+        description: Daily fraud rate percentage
+      - name: unique_customers
+        description: Unique customers in day
+
+  - name: mart_rule_performance
+    description: Fraud rule effectiveness metrics
+    columns:
+      - name: rule_name
+        description: Name of fraud rule
+        tests:
+          - unique
+      - name: trigger_count
+        description: Times rule was triggered
+      - name: trigger_pct
+        description: Percentage of total transactions
+      - name: avg_risk_score_when_triggered
+        description: Average risk score when rule triggered
