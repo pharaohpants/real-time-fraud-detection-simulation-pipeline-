@@ -16,7 +16,8 @@ Sistem pipeline real-time untuk deteksi fraud pada transaksi finansial menggunak
 ---
 ## Workflow 
 
-<img width="4611" height="4920" alt="image" src="https://github.com/user-attachments/assets/4ef8eeb9-8f33-429c-a1b4-0a131f6a9604" />
+<img width="4611" height="3976" alt="image" src="https://github.com/user-attachments/assets/c4b1ac74-6a7f-4c99-b03f-2956dd60baf9" />
+
 
 ## Tech Stack
 
