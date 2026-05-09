@@ -14,6 +14,9 @@ Sistem pipeline real-time untuk deteksi fraud pada transaksi finansial menggunak
 - Real-time monitoring dashboard dengan Grafana
 
 ---
+## Workflow 
+
+<img width="4611" height="4920" alt="image" src="https://github.com/user-attachments/assets/4ef8eeb9-8f33-429c-a1b4-0a131f6a9604" />
 
 ## Tech Stack
 
