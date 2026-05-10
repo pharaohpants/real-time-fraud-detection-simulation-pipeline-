@@ -415,19 +415,6 @@ docker exec fraud-pipeline-airflow-scheduler-1 bash -c \
 
 ---
 
-## Troubleshooting
-
-| Issue | Solution |
-|---|---|
-| Services tidak start | Check port availability (`netstat -an`) |
-| Simulator tidak terhubung Kafka | Verify `KAFKA_BOOTSTRAP_SERVERS` di .env |
-| Spark job error | Check Spark logs: `docker-compose logs spark` |
-| dbt run gagal | Verify PostgreSQL credentials + connectivity |
-| Grafana dashboard kosong | Verify PostgreSQL datasource di Grafana UI |
-| Airflow DAG tidak trigger | Check Airflow scheduler running |
-
----
-
 ## Performance Metrics
 
 Typical performance dengan simulator 1 transaksi/detik:
