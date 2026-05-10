@@ -33,7 +33,7 @@ POSTGRES_PASSWORD = os.getenv('POSTGRES_PASSWORD', 'fraud_pass')
 # Initialize Spark Session
 spark = SparkSession.builder \
     .appName("FraudDetectionEngine") \
-    .config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0") \
+    .config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,org.postgresql:postgresql:42.6.0") \
     .getOrCreate()
 
 spark.sparkContext.setLogLevel("WARN")
@@ -54,6 +54,26 @@ def get_postgres_connection():
     except Exception as e:
         logger.error(f"Failed to connect to PostgreSQL: {e}")
         raise
+
+
+def load_customer_baseline():
+    """Load customer baseline (avg_amount, std_amount) from PostgreSQL."""
+    try:
+        logger.info("Loading customer_baseline from PostgreSQL...")
+        baseline_df = spark.read \
+            .format("jdbc") \
+            .option("url", f"jdbc:postgresql://{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}") \
+            .option("dbtable", "public.mart_customer_baseline") \
+            .option("user", POSTGRES_USER) \
+            .option("password", POSTGRES_PASSWORD) \
+            .option("driver", "org.postgresql.Driver") \
+            .load()
+        
+        logger.info(f"Loaded {baseline_df.count()} customer profiles")
+        return baseline_df
+    except Exception as e:
+        logger.warning(f"Could not load customer_baseline (first run?): {e}")
+        return None
 
 
 def haversine_distance(lat1, lon1, lat2, lon2):
@@ -145,14 +165,30 @@ def write_to_postgres(batch_df, batch_id, table_name):
         logger.error(f"Error writing to {table_name}: {e}")
 
 
-def score_transactions(batch_df):
-    """Apply fraud rules to a micro-batch using batch DataFrame operations."""
+def score_transactions(batch_df, customer_baseline_df=None):
+    """Apply fraud rules to a micro-batch using batch DataFrame operations.
+    
+    Args:
+        batch_df: Transaction batch
+        customer_baseline_df: Customer baseline for Z-score calculation (optional)
+    """
     batch_df = batch_df.withColumn(
         "timestamp", col("timestamp").cast("timestamp")
     ).withColumn(
         "event_time_ms",
         (unix_timestamp(col("timestamp")) * 1000).cast("long")
     )
+
+    # Join with customer baseline if available for Z-score calculation
+    if customer_baseline_df is not None:
+        batch_df = batch_df.join(
+            customer_baseline_df,
+            on="customer_id",
+            how="left"
+        )
+    else:
+        batch_df = batch_df.withColumn("avg_amount", None) \
+                          .withColumn("std_amount", None)
 
     velocity_window = Window \
         .partitionBy("customer_id") \
@@ -202,9 +238,22 @@ def score_transactions(batch_df):
         when(col("speed_kmh") > 900, True).otherwise(False)
     )
 
+    # Amount Spike: Z-score based (if baseline available) or fallback to hardcoded threshold
     scored_df = scored_df.withColumn(
+        "z_score_amount",
+        when(
+            (col("std_amount").isNotNull()) & (col("std_amount") > 0),
+            (col("amount") - col("avg_amount")) / col("std_amount")
+        ).otherwise(None)
+    ).withColumn(
         "is_amount_spike",
-        when(col("amount") > 10_000_000, True).otherwise(False)
+        when(
+            col("z_score_amount").isNotNull() & (col("z_score_amount") > 2.5),
+            True  # Z-score > 2.5 (99.4% upper tail, anomaly)
+        ).when(
+            col("z_score_amount").isNull() & (col("amount") > 10_000_000),
+            True  # Fallback for customers without history
+        ).otherwise(False)
     )
 
     scored_df = scored_df.withColumn(
@@ -244,6 +293,10 @@ def main():
     """Main Spark Streaming job."""
     
     try:
+        # Step 0: Load customer baseline for Z-score calculation
+        logger.info("Initializing customer baseline...")
+        customer_baseline_df = load_customer_baseline()
+        
         # Step A: Read from Kafka
         logger.info(f"Reading from Kafka topic: {KAFKA_TOPIC}")
         df = spark.readStream \
@@ -278,7 +331,7 @@ def main():
         
         # Step C: Apply fraud scoring inside foreachBatch so the micro-batch can use batch-only window logic.
         def process_batch(batch_df, batch_id):
-            fraud_scored_df = score_transactions(batch_df).select(
+            fraud_scored_df = score_transactions(batch_df, customer_baseline_df).select(
                 col("transaction_id"),
                 col("customer_id"),
                 col("name"),
@@ -312,7 +365,7 @@ def main():
             )
             write_to_postgres(raw_batch_df, batch_id, "raw_transactions")
 
-            flagged_df = fraud_scored_df.filter(col("risk_score") > 0).select(
+            flagged_df = fraud_scored_df.filter(col("risk_score") >= 40).select(
                 col("transaction_id"),
                 col("customer_id"),
                 col("amount"),

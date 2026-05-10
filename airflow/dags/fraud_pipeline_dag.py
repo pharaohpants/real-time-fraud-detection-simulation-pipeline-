@@ -51,10 +51,10 @@ def log_success():
     logger.info("✓ Pipeline task completed successfully")
 
 
-# Task 1: Validate raw data with Great Expectations
+# Task 1: Validate raw data (raw_transactions and fraud_flags)
 validate_raw_data = BashOperator(
     task_id='validate_raw_data',
-    bash_command=f'cd {GE_PATH} && python data_quality_checks.py',
+    bash_command=f'cd {GE_PATH} && python data_quality_checks.py --layer raw',
     env=POSTGRES_ENV,
     dag=dag,
 )
@@ -99,10 +99,10 @@ run_dbt_tests = BashOperator(
     dag=dag,
 )
 
-# Task 7: Validate gold data
+# Task 7: Validate gold layer marts (fraud_summary, customer_risk, daily_volume, rule_performance)
 validate_gold_data = BashOperator(
     task_id='validate_gold_data',
-    bash_command=f'cd {GE_PATH} && python data_quality_checks.py',
+    bash_command=f'cd {GE_PATH} && python data_quality_checks.py --layer gold',
     env=POSTGRES_ENV,
     dag=dag,
 )

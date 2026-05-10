@@ -211,7 +211,7 @@ Risk Score < 40   → APPROVE (proses normal)
 
 ## Data Quality Check
 
-### `raw_transactions.warning`
+### `raw_transactions.warning` (Updated)
 
 ```python
 # Not null validation
@@ -232,7 +232,7 @@ Risk Score < 40   → APPROVE (proses normal)
 ✓ transaction_id UNIQUE
 ```
 
-### `fraud_flags.warning`
+### `fraud_flags.warning` (Updated)
 
 ```python
 # Not null validation
@@ -244,6 +244,39 @@ Risk Score < 40   → APPROVE (proses normal)
 
 # Categorical validation
 ✓ decision IN ['APPROVE', 'REVIEW', 'BLOCK']
+```
+## Data Quality Checks
+
+Script `great_expectations/data_quality_checks.py` mendukung layer-based validation:
+
+### Raw Layer Validation
+Mengecek `raw_transactions` dan `fraud_flags` tables:
+
+```bash
+python data_quality_checks.py --layer raw
+```
+
+Checks:
+- **raw_transactions**: NOT NULL, amount range (0-100M), valid card types, uniqueness
+- **fraud_flags**: NOT NULL, risk_score range (0-200), valid decision values
+
+### Gold Layer Validation
+Mengecek gold layer marts (mart_fraud_summary, mart_customer_risk, mart_daily_volume, mart_rule_performance):
+
+```bash
+python data_quality_checks.py --layer gold
+```
+
+Checks:
+- **mart_fraud_summary**: Row count, fraud_count NOT NULL, fraud_rate_pct valid (0-100%)
+- **mart_customer_risk**: Row count, total_txs > 0, risk_label valid (HIGH/MEDIUM/LOW)
+- **mart_daily_volume**: Row count, total_txs NOT NULL
+- **mart_rule_performance**: Row count, trigger_count NOT NULL
+
+### Run All Layers
+```bash
+python data_quality_checks.py  # Default: both layers
+python data_quality_checks.py --layer both
 ```
 
 ---
@@ -318,6 +351,7 @@ Real-time monitoring dengan 5 panels (auto-refresh setiap 5 detik):
 docker-compose logs simulator | grep SENT
 
 # Check Spark processing
+## Airflow DAG (Updated)
 docker-compose logs spark | grep "Inserted"
 
 # Verify data in PostgreSQL
@@ -353,6 +387,22 @@ SELECT * FROM fraud_flags LIMIT 10;
 # Query gold models
 SELECT * FROM gold.mart_fraud_summary LIMIT 10;
 SELECT * FROM gold.mart_customer_risk LIMIT 10;
+```
+
+### Data Quality Checks
+
+```bash
+# Run validation for raw layer (raw_transactions & fraud_flags)
+docker exec fraud-pipeline-airflow-scheduler-1 bash -c \
+    "cd /opt/airflow/great_expectations && python data_quality_checks.py --layer raw"
+
+# Run validation for gold layer (all marts)
+docker exec fraud-pipeline-airflow-scheduler-1 bash -c \
+    "cd /opt/airflow/great_expectations && python data_quality_checks.py --layer gold"
+
+# Run validation for both layers
+docker exec fraud-pipeline-airflow-scheduler-1 bash -c \
+    "cd /opt/airflow/great_expectations && python data_quality_checks.py"
 ```
 
 ### Scaling Considerations
