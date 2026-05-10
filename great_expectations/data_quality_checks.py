@@ -143,7 +143,7 @@ def validate_gold_marts():
         logger.info("  Checking mart_customer_risk...")
         customer_risk_checks = [
             ("row count > 0", "SELECT COUNT(*) FROM gold.mart_customer_risk"),
-            ("total_txs > 0", "SELECT COUNT(*) FROM gold.mart_customer_risk WHERE total_txs <= 0"),
+            ("total_transactions > 0", "SELECT COUNT(*) FROM gold.mart_customer_risk WHERE total_transactions <= 0"),
             ("risk_label valid", "SELECT COUNT(*) FROM gold.mart_customer_risk WHERE risk_label NOT IN ('HIGH','MEDIUM','LOW')"),
         ]
 
@@ -162,7 +162,7 @@ def validate_gold_marts():
         logger.info("  Checking mart_daily_volume...")
         daily_volume_checks = [
             ("row count > 0", "SELECT COUNT(*) FROM gold.mart_daily_volume"),
-            ("total_txs NOT NULL", "SELECT COUNT(*) FROM gold.mart_daily_volume WHERE total_txs IS NULL"),
+            ("total_transactions NOT NULL", "SELECT COUNT(*) FROM gold.mart_daily_volume WHERE total_transactions IS NULL"),
         ]
 
         for check_name, query in daily_volume_checks:

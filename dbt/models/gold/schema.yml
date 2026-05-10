@@ -82,3 +82,25 @@ models:
         description: Percentage of total transactions
       - name: avg_risk_score_when_triggered
         description: Average risk score when rule triggered
+
+  - name: mart_customer_baseline
+    description: Customer baseline metrics for Z-score
+    columns:
+      - name: customer_id
+        description: Customer identifier
+        tests:
+          - not_null
+          - unique
+      - name: avg_amount
+        description: Historical average amount per customer
+        tests:
+          - not_null
+      - name: std_amount
+        description: Historical standard deviation of amount per customer
+        tests:
+          - not_null
+      - name: transaction_count
+        description: Number of historical transactions used for baseline
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "transaction_count > 0"

@@ -34,15 +34,6 @@ CREATE TABLE IF NOT EXISTS fraud_flags (
 CREATE INDEX idx_fraud_flags_processed_at ON fraud_flags(processed_at);
 CREATE INDEX idx_fraud_flags_customer_id ON fraud_flags(customer_id);
 CREATE INDEX idx_raw_transactions_timestamp ON raw_transactions(timestamp);
-
--- Tabel customer_baseline untuk Z-score calculation
-CREATE TABLE IF NOT EXISTS customer_baseline (
-    customer_id      VARCHAR(36) PRIMARY KEY,
-    avg_amount       NUMERIC(15, 2),
-    std_amount       NUMERIC(15, 2),
-    updated_at       TIMESTAMP DEFAULT NOW()
-);
-
 -- Tabel untuk tracking Bronze/Silver/Gold layer
 CREATE SCHEMA IF NOT EXISTS bronze;
 CREATE SCHEMA IF NOT EXISTS silver;
