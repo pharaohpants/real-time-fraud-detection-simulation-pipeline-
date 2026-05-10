@@ -389,20 +389,4 @@ Typical performance dengan simulator 1 transaksi/detik:
 
 ---
 
-## Best Practices
-
-✅ **DO:**
-- Ubah default credentials di `.env` untuk production
-- Monitor logs regularly untuk anomalies
-- Backup PostgreSQL data volumes
-- Test dbt models sebelum deploy ke production
-- Use Airflow backfill untuk historical data
-
-❌ **DON'T:**
-- Commit `.env` ke repository
-- Hardcode credentials di kode
-- Run simulator dengan interval < 0.1 detik
-- Modify database schema tanpa dbt migration
-- Disable data quality checks
-
 
