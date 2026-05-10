@@ -1,7 +1,7 @@
 {{
   config(
     materialized='table',
-    schema='public'  -- Keep in public schema for easy access by Spark
+    schema='public'
   )
 }}
 

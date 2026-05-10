@@ -8,6 +8,8 @@ WITH fraud_data AS (
         COALESCE(f.risk_score, 0) AS risk_score,
         COALESCE(f.decision, 'APPROVE') AS decision
     FROM {{ ref('int_transactions_enriched') }} t
+    LEFT JOIN {{ source('fraud_db', 'fraud_flags') }} f
+        ON t.transaction_id = f.transaction_id
 )
 SELECT
     hour_bucket,

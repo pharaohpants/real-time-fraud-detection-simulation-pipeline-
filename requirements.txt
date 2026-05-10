@@ -1,0 +1,8 @@
+apache-airflow==2.7.0
+pyspark==3.5.0
+python-dotenv==1.0.0
+psycopg2-binary==2.9.7
+dbt-core==1.6.0
+great_expectations==0.17.0
+kafka-python==2.0.2
+pandas==2.1.0

@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS raw_transactions (
 -- Tabel 2: fraud_flags (hasil scoring dari Spark)
 CREATE TABLE IF NOT EXISTS fraud_flags (
     id               SERIAL PRIMARY KEY,
-    transaction_id   VARCHAR(36) NOT NULL,
+    transaction_id   VARCHAR(36) NOT NULL UNIQUE,
     customer_id      VARCHAR(36) NOT NULL,
     amount           NUMERIC(15, 2),
     risk_score       INTEGER NOT NULL,
