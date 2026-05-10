@@ -285,7 +285,7 @@ python data_quality_checks.py --layer both
 
 DAG runs **@daily** dengan 8 sequential tasks:
 
-<img width="1367" height="238" alt="image" src="https://github.com/user-attachments/assets/7384e225-7ae1-47b0-859d-a63f60bde973" />
+<img width="1898" height="605" alt="image" src="https://github.com/user-attachments/assets/8a681403-31b1-4f53-91b4-6216e0414b35" />
 
 ```
 validate_raw_data (Great Expectations)
@@ -314,7 +314,8 @@ notify_success (log success message)
 ## Grafana Dashboard
 
 Real-time monitoring dengan 5 panels (auto-refresh setiap 5 detik):
-<img width="1919" height="971" alt="image" src="https://github.com/user-attachments/assets/16ea50db-1c82-409e-bab6-bc4ebe97592f" />
+<img width="1919" height="671" alt="image" src="https://github.com/user-attachments/assets/6ee6b6e1-a39f-4c36-99e4-aa9ffd80d380" />
+
 
 ### Panel 1: Fraud Rate Per Minute (Time Series)
 - Metrik: fraud_rate_pct dari fraud_flags per menit
