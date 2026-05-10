@@ -91,15 +91,6 @@ fraud-pipeline/
 
 ---
 
-## Prerequisites
-
-- Docker & Docker Compose (versi terbaru)
-- Python 3.11+ (jika ingin menjalankan lokal tanpa Docker)
-- Minimal 4GB RAM dan 10GB disk space
-- Port tersedia: 2181 (Zookeeper), 9092 (Kafka), 5432 (PostgreSQL), 3000 (Grafana), 8080 (Airflow)
-
----
-
 ## Quick Start
 
 ### 1. Clone dan setup project
