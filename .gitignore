@@ -1,10 +1,14 @@
+# ============================================================
 # Environment variables (NEVER commit real credentials)
+# ============================================================
 .env
 .env.local
 .env.*.local
 !.env.example
 
+# ============================================================
 # Python
+# ============================================================
 __pycache__/
 *.py[cod]
 *$py.class
@@ -29,7 +33,9 @@ share/python-wheels/
 *.egg
 MANIFEST
 
+# ============================================================
 # Virtual environments
+# ============================================================
 .venv/
 venv/
 env/
@@ -37,7 +43,9 @@ ENV/
 env.bak/
 venv.bak/
 
+# ============================================================
 # IDE
+# ============================================================
 .vscode/
 .idea/
 *.swp
@@ -49,7 +57,9 @@ venv.bak/
 *.sublime-project
 *.sublime-workspace
 
-# OS
+# ============================================================
+# OS generated files
+# ============================================================
 .DS_Store
 .DS_Store?
 ._*
@@ -58,67 +68,83 @@ venv.bak/
 ehthumbs.db
 Thumbs.db
 
+# ============================================================
 # Logs
+# ============================================================
 *.log
 logs/
 
+# ============================================================
 # dbt
+# ============================================================
 dbt/target/
 dbt/dbt_packages/
-dbt/profiles.yml  # Keep as example if needed
 dbt/logs/
 dbt/graph.gpickle
 dbt/.sqlfluff
+dbt/.user.yml
+dbt/package-lock.yml
 
+# ============================================================
 # Great Expectations
+# ============================================================
 great_expectations/uncommitted/
 great_expectations/.ge_store_backend_id
+great_expectations/__pycache__/
 
+# ============================================================
 # Airflow
+# ============================================================
 airflow/logs/
 airflow/plugins/
 airflow/dags/__pycache__/
-airflow_data/
 
+# ============================================================
 # Docker volumes and data persistence
+# ============================================================
 postgres_data/
 grafana_data/
 airflow_data/
 
+# ============================================================
 # Temporary files
+# ============================================================
 *.tmp
 *.temp
 *.bak
-*.swp
-*.swo
-*~
 .tmp/
 
-# Node modules (if any frontend added later)
-node_modules/
-npm-debug.log
-yarn-error.log
-
-# Jupyter Notebook
-.ipynb_checkpoints/
-*.ipynb
-
+# ============================================================
 # Testing
+# ============================================================
 .pytest_cache/
 .coverage
 htmlcov/
 .tox/
 reports/
 
-# mypy
+# ============================================================
+# Type checking
+# ============================================================
 .mypy_cache/
 .dmypy.json
 dmypy.json
-
-# Pyre
 .pyre/
 
-# Misc
-.git/
-.github/
-.gitattributes
+# ============================================================
+# Node (if any frontend added later)
+# ============================================================
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# ============================================================
+# Jupyter Notebook
+# ============================================================
+.ipynb_checkpoints/
+*.ipynb
+
+# ============================================================
+# Internal / review files (not for public repo)
+# ============================================================
+review.md
