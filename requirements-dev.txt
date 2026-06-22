@@ -1,0 +1,15 @@
+# Development and testing dependencies
+pytest==7.4.4
+pytest-cov==4.1.0
+flake8==7.0.0
+
+# PySpark for fraud rule testing
+pyspark==3.5.0
+
+# Simulator dependencies
+faker==24.0.0
+kafka-python==2.0.2
+python-dotenv==1.0.0
+
+# Great Expectations dependencies
+psycopg2-binary==2.9.9

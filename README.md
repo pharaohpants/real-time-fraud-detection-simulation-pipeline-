@@ -1,5 +1,7 @@
 # Real-Time Fraud Detection Pipeline 🚀
 
+![CI Pipeline](https://github.com/pharaohpants/real-time-fraud-detection-simulation-pipeline-/actions/workflows/ci.yml/badge.svg)
+
 ## Project Overview
 
 Sistem pipeline real-time untuk deteksi fraud pada transaksi finansial menggunakan teknologi modern data engineering. Pipeline ini menghasilkan transaksi secara sintetis dengan Faker, memproses stream data menggunakan Kafka dan Spark, menyimpan ke PostgreSQL, melakukan transformasi dengan dbt, validasi data dengan Great Expectations, dan visualisasi real-time di Grafana.
@@ -17,6 +19,39 @@ Sistem pipeline real-time untuk deteksi fraud pada transaksi finansial menggunak
 ## Workflow 
 
 <img width="4611" height="3976" alt="image" src="https://github.com/user-attachments/assets/c4b1ac74-6a7f-4c99-b03f-2956dd60baf9" />
+
+### Architecture Diagram
+
+```mermaid
+flowchart LR
+    subgraph Ingestion
+        A[Simulator<br/>Python + Faker] -->|JSON| B[Apache Kafka]
+    end
+
+    subgraph Processing
+        B -->|Stream| C[Apache Spark<br/>Fraud Engine]
+        C -->|Write| D[(PostgreSQL)]
+    end
+
+    subgraph Transformation
+        D -->|Read| E[dbt<br/>Bronze → Silver → Gold]
+        E -->|Write| D
+    end
+
+    subgraph Quality
+        F[Data Quality Checks<br/>Custom Validators] -->|Validate| D
+    end
+
+    subgraph Orchestration
+        G[Apache Airflow<br/>+ Cosmos] -->|Trigger| E
+        G -->|Trigger| F
+        G -->|Alert| H[Slack]
+    end
+
+    subgraph Visualization
+        D -->|Query| I[Grafana<br/>Real-time Dashboard]
+    end
+```
 
 
 ## Tech Stack
@@ -39,9 +74,14 @@ Sistem pipeline real-time untuk deteksi fraud pada transaksi finansial menggunak
 ```
 fraud-pipeline/
 ├── docker-compose.yml          # Orkestrasi semua services
-├── .env                        # Environment variables
 ├── .env.example                # Template environment variables
 ├── .gitignore                  # Git ignore rules
+├── Makefile                    # Developer convenience commands
+├── pytest.ini                  # Test configuration
+├── requirements-dev.txt        # Dev/test dependencies
+│
+├── config/                     # Externalized configuration
+│   └── fraud_rules.yaml       # Fraud rule thresholds & scoring
 │
 ├── simulator/                  # Transaction data generator
 │   ├── Dockerfile
@@ -57,36 +97,50 @@ fraud-pipeline/
 │   ├── dbt_project.yml
 │   ├── profiles.yml
 │   └── models/
-│       ├── bronze/            # Raw data copy
+│       ├── bronze/            # Raw data staging (views)
 │       │   ├── stg_raw_transactions.sql
 │       │   ├── stg_fraud_flags.sql
 │       │   └── sources.yml
 │       ├── silver/            # Data enrichment
 │       │   └── int_transactions_enriched.sql
-│       └── gold/              # Business metrics (4 marts)
+│       └── gold/              # Business metrics (5 marts)
 │           ├── mart_fraud_summary.sql
 │           ├── mart_customer_risk.sql
+│           ├── mart_customer_baseline.sql
 │           ├── mart_daily_volume.sql
 │           ├── mart_rule_performance.sql
 │           └── schema.yml
 │
-├── great_expectations/        # Data quality framework
+├── great_expectations/        # Data quality validation
 │   ├── great_expectations.yml
 │   ├── expectations_definitions.py
-│   └── validate_data.py
+│   └── data_quality_checks.py # Layer-based validator
 │
 ├── airflow/                    # Workflow orchestration
+│   ├── Dockerfile
 │   └── dags/
 │       └── fraud_pipeline_dag.py
 │
 ├── grafana/                    # Monitoring dashboard
-│   └── dashboards/
-│       └── fraud_dashboard.json
+│   ├── dashboards/
+│   │   └── fraud_dashboard.json
+│   └── provisioning/
+│       ├── dashboards/dashboard.yml
+│       └── datasources/postgres.yml
 │
 ├── postgres/                   # Database initialization
-│   └── init.sql               # Schema + tables
+│   └── init.sql               # Schema + tables + indexes
 │
-└── README.md                   # Dokumentasi ini
+├── tests/                      # Unit & integration tests
+│   ├── test_fraud_rules.py    # PySpark fraud rule tests
+│   ├── test_simulator.py      # Simulator generation tests
+│   └── test_data_quality.py   # Expectation definition tests
+│
+├── .github/
+│   └── workflows/
+│       └── ci.yml             # GitHub Actions CI pipeline
+│
+└── README.md                   # This documentation
 ```
 
 ---
@@ -444,3 +498,96 @@ Typical performance dengan simulator 1 transaksi/detik:
 ---
 
 
+
+## Development
+
+### Prerequisites
+- Docker & Docker Compose
+- Python 3.11+ (for local testing)
+- Java 17+ (for PySpark tests)
+
+### Setup Development Environment
+
+```bash
+# Clone repository
+git clone <your-repo-url>
+cd fraud-pipeline
+
+# Create .env from template
+cp .env.example .env
+# Edit .env with your credentials
+
+# Install dev dependencies
+pip install -r requirements-dev.txt
+
+# Run tests
+pytest tests/ -v
+```
+
+### Available Make Commands
+
+```bash
+make up          # Start all services
+make down        # Stop all services
+make test        # Run unit tests
+make lint        # Run flake8 linter
+make validate    # Run data quality checks
+make dbt-run     # Run dbt models
+make dbt-test    # Run dbt tests
+make clean       # Remove volumes and rebuild
+```
+
+### Running Tests
+
+```bash
+# All tests
+pytest tests/ -v
+
+# Simulator tests only (no Spark needed)
+pytest tests/test_simulator.py -v
+
+# Data quality tests only
+pytest tests/test_data_quality.py -v
+
+# Fraud rules tests (requires PySpark + Java)
+pytest tests/test_fraud_rules.py -v
+```
+
+### CI/CD
+
+This project uses GitHub Actions for continuous integration:
+- **lint-and-test**: Flake8 linting + pytest unit tests
+- **dbt-compile**: Validates dbt model compilation against PostgreSQL
+- **docker-build**: Validates docker-compose config and builds all images
+
+### Configuration
+
+Fraud rule thresholds are externalized in `config/fraud_rules.yaml`. Adjust scores, time windows, and amount thresholds without code changes:
+
+```yaml
+rules:
+  velocity:
+    score: 40
+    max_transactions: 5
+    window_seconds: 60
+  impossible_travel:
+    score: 50
+    max_speed_kmh: 900
+  # ... see config/fraud_rules.yaml for full config
+```
+
+---
+
+## Security Notes
+
+- **Never commit `.env` to version control** — use `.env.example` as a template
+- Rotate any credentials that may have been previously exposed
+- Kafka uses PLAINTEXT in development; enable SSL/TLS for production
+- Grafana and Airflow use default credentials in dev — change for production
+- PII (customer names) stored in raw_transactions — consider pseudonymization for production
+
+---
+
+## License
+
+This project is for portfolio/educational purposes.

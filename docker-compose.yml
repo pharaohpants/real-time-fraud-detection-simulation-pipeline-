@@ -80,6 +80,14 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./config:/app/config
+      - spark_checkpoints:/opt/spark/work-dir
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 2g
     networks:
       - fraud-network
 
@@ -102,13 +110,20 @@ services:
       context: ./airflow
       dockerfile: Dockerfile
     command: >
-      bash -c "airflow db migrate && (airflow users create --username airflow --password airflow --firstname Airflow --lastname Admin --role Admin --email airflow@example.com || true) && exec airflow webserver"
+      bash -c "rm -f /opt/airflow/airflow-webserver.pid && airflow db migrate && airflow users create --username airflow --password airflow --firstname Airflow --lastname Admin --role Admin --email airflow@example.com || true && exec airflow webserver"
+    restart: always
     ports:
       - "8080:8080"
     environment:
       AIRFLOW__CORE__EXECUTOR: ${AIRFLOW__CORE__EXECUTOR}
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: ${AIRFLOW__DATABASE__SQL_ALCHEMY_CONN}
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      AIRFLOW_CONN_FRAUD_POSTGRES: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./great_expectations:/opt/airflow/great_expectations
@@ -129,6 +144,12 @@ services:
       AIRFLOW__CORE__EXECUTOR: ${AIRFLOW__CORE__EXECUTOR}
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: ${AIRFLOW__DATABASE__SQL_ALCHEMY_CONN}
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      AIRFLOW_CONN_FRAUD_POSTGRES: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./great_expectations:/opt/airflow/great_expectations
@@ -137,6 +158,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      airflow-webserver:
+        condition: service_started  # ensure webserver started before scheduler
     restart: always
     networks:
       - fraud-network
@@ -149,3 +172,4 @@ volumes:
   postgres_data:
   grafana_data:
   airflow_data:
+  spark_checkpoints:

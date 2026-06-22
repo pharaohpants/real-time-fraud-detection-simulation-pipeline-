@@ -103,4 +103,4 @@ models:
         description: Number of historical transactions used for baseline
         tests:
           - dbt_utils.expression_is_true:
-              expression: "transaction_count > 0"
+              expression: "> 0"

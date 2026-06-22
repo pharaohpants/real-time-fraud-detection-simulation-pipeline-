@@ -3,6 +3,7 @@ import json
 import logging
 from datetime import datetime
 from dotenv import load_dotenv
+import yaml
 from pyspark.sql import SparkSession, Window
 from pyspark.sql.functions import (
     col, from_json, schema_of_json, current_timestamp,
@@ -29,6 +30,33 @@ POSTGRES_PORT = os.getenv('POSTGRES_PORT', '5432')
 POSTGRES_DB = os.getenv('POSTGRES_DB', 'fraud_db')
 POSTGRES_USER = os.getenv('POSTGRES_USER', 'fraud_user')
 POSTGRES_PASSWORD = os.getenv('POSTGRES_PASSWORD', 'fraud_pass')
+
+# Load fraud rules config
+RULES_CONFIG_PATH = os.getenv('RULES_CONFIG_PATH', '/app/config/fraud_rules.yaml')
+
+
+def load_rules_config():
+    """Load fraud rules configuration from YAML file."""
+    try:
+        with open(RULES_CONFIG_PATH, 'r') as f:
+            config = yaml.safe_load(f)
+            logger.info(f"Loaded fraud rules config from {RULES_CONFIG_PATH}")
+            return config
+    except FileNotFoundError:
+        logger.warning(f"Config file not found at {RULES_CONFIG_PATH}, using defaults")
+        return {
+            'rules': {
+                'velocity': {'enabled': True, 'score': 40, 'max_transactions': 5, 'window_seconds': 60},
+                'impossible_travel': {'enabled': True, 'score': 50, 'max_speed_kmh': 900},
+                'amount_spike': {'enabled': True, 'score': 30, 'z_score_threshold': 2.5, 'fallback_amount': 10000000},
+                'off_hours': {'enabled': True, 'score': 20, 'start_hour': 1, 'end_hour': 5},
+                'card_testing': {'enabled': True, 'score': 35, 'min_micro_count': 3, 'micro_amount': 10000, 'large_amount': 1000000, 'window_seconds': 600},
+            },
+            'decision': {'block_threshold': 70, 'review_threshold': 40}
+        }
+
+
+RULES_CONFIG = load_rules_config()
 
 # Initialize Spark Session
 spark = SparkSession.builder \
@@ -69,7 +97,7 @@ def load_customer_baseline():
             .option("driver", "org.postgresql.Driver") \
             .load()
         
-        logger.info(f"Loaded {baseline_df.count()} customer profiles")
+        logger.info("Customer baseline loaded successfully")
         return baseline_df
     except Exception as e:
         logger.warning(f"Could not load customer_baseline (first run?): {e}")
@@ -95,13 +123,13 @@ def haversine_distance(lat1, lon1, lat2, lon2):
 
 def write_to_postgres(batch_df, batch_id, table_name):
     """Write batch data to PostgreSQL."""
-    if batch_df.count() == 0:
-        logger.info(f"Batch {batch_id} is empty for {table_name}")
-        return
-    
     try:
-        # Convert to Pandas for easier insertion
+        # Convert to Pandas for insertion (avoid triggering count() action)
         pandas_df = batch_df.toPandas()
+        
+        if pandas_df.empty:
+            logger.info(f"Batch {batch_id} is empty for {table_name}")
+            return
         
         conn = get_postgres_connection()
         cursor = conn.cursor()
@@ -172,6 +200,16 @@ def score_transactions(batch_df, customer_baseline_df=None):
         batch_df: Transaction batch
         customer_baseline_df: Customer baseline for Z-score calculation (optional)
     """
+    # Load rule thresholds from config
+    rules = RULES_CONFIG.get('rules', {})
+    decision_cfg = RULES_CONFIG.get('decision', {})
+
+    velocity_cfg = rules.get('velocity', {})
+    travel_cfg = rules.get('impossible_travel', {})
+    spike_cfg = rules.get('amount_spike', {})
+    hours_cfg = rules.get('off_hours', {})
+    card_cfg = rules.get('card_testing', {})
+
     batch_df = batch_df.withColumn(
         "timestamp", col("timestamp").cast("timestamp")
     ).withColumn(
@@ -190,28 +228,34 @@ def score_transactions(batch_df, customer_baseline_df=None):
         batch_df = batch_df.withColumn("avg_amount", None) \
                           .withColumn("std_amount", None)
 
+    velocity_window_ms = velocity_cfg.get('window_seconds', 60) * 1000
     velocity_window = Window \
         .partitionBy("customer_id") \
         .orderBy(col("event_time_ms")) \
-        .rangeBetween(-60000, 0)
+        .rangeBetween(-velocity_window_ms, 0)
 
     sequence_window = Window \
         .partitionBy("customer_id") \
         .orderBy(col("event_time_ms"))
 
+    card_window_ms = card_cfg.get('window_seconds', 600) * 1000
     micro_window = Window \
         .partitionBy("customer_id") \
         .orderBy(col("event_time_ms")) \
-        .rangeBetween(-600000, 0)
+        .rangeBetween(-card_window_ms, 0)
 
+    # Rule 1: Velocity Check
+    max_txns = velocity_cfg.get('max_transactions', 5)
     scored_df = batch_df.withColumn(
         "velocity_count",
         count("*").over(velocity_window)
     ).withColumn(
         "is_velocity",
-        when(col("velocity_count") > 5, True).otherwise(False)
+        when(col("velocity_count") > max_txns, True).otherwise(False)
     )
 
+    # Rule 2: Impossible Travel
+    max_speed = travel_cfg.get('max_speed_kmh', 900)
     scored_df = scored_df.withColumn(
         "prev_lat",
         lag("lat").over(sequence_window)
@@ -235,10 +279,12 @@ def score_transactions(batch_df, customer_baseline_df=None):
         when(col("time_diff_hours") > 0, col("distance_km") / col("time_diff_hours")).otherwise(0.0)
     ).withColumn(
         "is_impossible_travel",
-        when(col("speed_kmh") > 900, True).otherwise(False)
+        when(col("speed_kmh") > max_speed, True).otherwise(False)
     )
 
-    # Amount Spike: Z-score based (if baseline available) or fallback to hardcoded threshold
+    # Rule 3: Amount Spike (Z-score based with fallback)
+    z_threshold = spike_cfg.get('z_score_threshold', 2.5)
+    fallback_amount = spike_cfg.get('fallback_amount', 10_000_000)
     scored_df = scored_df.withColumn(
         "z_score_amount",
         when(
@@ -248,41 +294,58 @@ def score_transactions(batch_df, customer_baseline_df=None):
     ).withColumn(
         "is_amount_spike",
         when(
-            col("z_score_amount").isNotNull() & (col("z_score_amount") > 2.5),
-            True  # Z-score > 2.5 (99.4% upper tail, anomaly)
+            col("z_score_amount").isNotNull() & (col("z_score_amount") > z_threshold),
+            True
         ).when(
-            col("z_score_amount").isNull() & (col("amount") > 10_000_000),
-            True  # Fallback for customers without history
+            col("z_score_amount").isNull() & (col("amount") > fallback_amount),
+            True
         ).otherwise(False)
     )
 
+    # Rule 4: Off-Hours
+    start_hour = hours_cfg.get('start_hour', 1)
+    end_hour = hours_cfg.get('end_hour', 5)
     scored_df = scored_df.withColumn(
         "is_off_hours",
-        when((hour(col("timestamp")) >= 1) & (hour(col("timestamp")) < 5), True).otherwise(False)
+        when((hour(col("timestamp")) >= start_hour) & (hour(col("timestamp")) < end_hour), True).otherwise(False)
     )
 
+    # Rule 5: Card Testing
+    micro_amount = card_cfg.get('micro_amount', 10_000)
+    large_amount = card_cfg.get('large_amount', 1_000_000)
+    min_micro = card_cfg.get('min_micro_count', 3)
     scored_df = scored_df.withColumn(
         "micro_count",
-        count(when(col("amount") < 10_000, 1)).over(micro_window)
+        count(when(col("amount") < micro_amount, 1)).over(micro_window)
     ).withColumn(
         "max_amount_10min",
         spark_max(col("amount")).over(micro_window)
     ).withColumn(
         "is_card_testing",
-        when((col("micro_count") >= 3) & (col("max_amount_10min") > 1_000_000), True).otherwise(False)
+        when((col("micro_count") >= min_micro) & (col("max_amount_10min") > large_amount), True).otherwise(False)
     )
+
+    # Composite scoring
+    velocity_score = velocity_cfg.get('score', 40)
+    travel_score = travel_cfg.get('score', 50)
+    spike_score = spike_cfg.get('score', 30)
+    hours_score = hours_cfg.get('score', 20)
+    card_score = card_cfg.get('score', 35)
 
     risk_score = (
-        when(col("is_velocity"), 40).otherwise(0) +
-        when(col("is_impossible_travel"), 50).otherwise(0) +
-        when(col("is_amount_spike"), 30).otherwise(0) +
-        when(col("is_off_hours"), 20).otherwise(0) +
-        when(col("is_card_testing"), 35).otherwise(0)
+        when(col("is_velocity"), velocity_score).otherwise(0) +
+        when(col("is_impossible_travel"), travel_score).otherwise(0) +
+        when(col("is_amount_spike"), spike_score).otherwise(0) +
+        when(col("is_off_hours"), hours_score).otherwise(0) +
+        when(col("is_card_testing"), card_score).otherwise(0)
     )
 
+    block_threshold = decision_cfg.get('block_threshold', 70)
+    review_threshold = decision_cfg.get('review_threshold', 40)
+
     decision = (
-        when(risk_score >= 70, "BLOCK")
-        .when(risk_score >= 40, "REVIEW")
+        when(risk_score >= block_threshold, "BLOCK")
+        .when(risk_score >= review_threshold, "REVIEW")
         .otherwise("APPROVE")
     )
 
@@ -296,6 +359,9 @@ def main():
         # Step 0: Load customer baseline for Z-score calculation
         logger.info("Initializing customer baseline...")
         customer_baseline_df = load_customer_baseline()
+        if customer_baseline_df is not None:
+            customer_baseline_df.cache()
+            logger.info("Customer baseline cached for micro-batch joins")
         
         # Step A: Read from Kafka
         logger.info(f"Reading from Kafka topic: {KAFKA_TOPIC}")
@@ -385,7 +451,7 @@ def main():
         query_raw = parsed_df.writeStream \
             .outputMode("append") \
             .foreachBatch(process_batch) \
-            .option("checkpointLocation", "/tmp/checkpoint_raw") \
+            .option("checkpointLocation", "/opt/spark/work-dir/checkpoint_raw") \
             .start()
         
         logger.info("Streaming queries started. Waiting for queries to terminate...")

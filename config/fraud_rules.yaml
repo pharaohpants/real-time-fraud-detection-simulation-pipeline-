@@ -1,0 +1,48 @@
+# Fraud Detection Rules Configuration
+# Adjust thresholds without changing code
+
+rules:
+  velocity:
+    enabled: true
+    score: 40
+    # Max transactions per customer within window_seconds
+    max_transactions: 5
+    window_seconds: 60
+
+  impossible_travel:
+    enabled: true
+    score: 50
+    # Max speed in km/h before flagging as impossible
+    max_speed_kmh: 900
+
+  amount_spike:
+    enabled: true
+    score: 30
+    # Z-score threshold for anomaly detection (higher = stricter)
+    z_score_threshold: 2.5
+    # Fallback threshold (Rp) for customers without history
+    fallback_amount: 10000000
+
+  off_hours:
+    enabled: true
+    score: 20
+    # Time range considered "off hours" (24h format)
+    start_hour: 1
+    end_hour: 5
+
+  card_testing:
+    enabled: true
+    score: 35
+    # Min micro-transactions within window before flagging
+    min_micro_count: 3
+    # Amount threshold for micro-transaction (Rp)
+    micro_amount: 10000
+    # Large transaction threshold after micro-transactions (Rp)
+    large_amount: 1000000
+    # Window in seconds to look for micro-transactions
+    window_seconds: 600
+
+# Decision thresholds
+decision:
+  block_threshold: 70
+  review_threshold: 40

@@ -1,7 +1,7 @@
 """
 Great Expectations Expectation Suite for raw_transactions table
 """
-from great_expectations.core.expectation_configuration import ExpectationConfiguration
+
 
 def get_raw_transactions_expectations():
     """Define expectations for raw_transactions table"""
