@@ -14,6 +14,7 @@ from pyspark.sql.functions import (
 )
 import psycopg2
 from psycopg2.extras import execute_values
+from pyspark.sql.functions import lit
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -225,8 +226,8 @@ def score_transactions(batch_df, customer_baseline_df=None):
             how="left"
         )
     else:
-        batch_df = batch_df.withColumn("avg_amount", None) \
-                          .withColumn("std_amount", None)
+        batch_df = batch_df.withColumn("avg_amount", lit(None).cast("double")) \
+                      .withColumn("std_amount", lit(None).cast("double"))
 
     velocity_window_ms = velocity_cfg.get('window_seconds', 60) * 1000
     velocity_window = Window \
