@@ -89,7 +89,7 @@ jobs:
 
       - name: Install dbt
         run: |
-          pip install dbt-core==1.7.0 dbt-postgres==1.7.0
+            pip install dbt-core==1.7.0 dbt-postgres==1.7.0 "protobuf>=3.20,<5.0"
 
       - name: Initialize database schema
         run: |
